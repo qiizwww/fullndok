@@ -468,7 +468,7 @@ class _PanenDebugScreenState extends State<PanenDebugScreen> {
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );

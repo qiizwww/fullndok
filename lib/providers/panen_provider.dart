@@ -5,89 +5,13 @@ import '../models/panen_model.dart';
 
 class PanenProvider extends ChangeNotifier {
   final FirebaseDatabase _database = FirebaseDatabase.instance;
+  static const bool _allowFlutterAutoCaptureWrite = false;
 
   // Tracking snapshot untuk time-windowing logic
-  Map<String, int> _snapshotPagiHariIni = {}; // kandangId -> nilaiPagi
-  Map<String, int> _snapshotSoreHariIni = {}; // kandangId -> nilaiSore
+  final Map<String, int> _snapshotPagiHariIni = {}; // kandangId -> nilaiPagi
+  final Map<String, int> _snapshotSoreHariIni = {}; // kandangId -> nilaiSore
 
-  final List<Panen> _panens = [
-    // Tanggal 7 March 2026 - Kandang 1
-    Panen(
-      id: 'panen_1',
-      kandangId: 'kandang_1',
-      kandangNama: 'Kandang 1',
-      jumlahTelur: 45,
-      tanggalPanen: DateTime(2026, 3, 7, 9, 0), // 7 March 2026, 09:00
-      jam: '09:00',
-      catatan: 'Panen pagi - Kondisi baik',
-    ),
-    Panen(
-      id: 'panen_2',
-      kandangId: 'kandang_1',
-      kandangNama: 'Kandang 1',
-      jumlahTelur: 42,
-      tanggalPanen: DateTime(2026, 3, 7, 15, 0), // 7 March 2026, 15:00
-      jam: '15:00',
-      catatan: 'Panen sore - Ada 3 telur pecah',
-    ),
-    // Tanggal 7 March 2026 - Kandang 2
-    Panen(
-      id: 'panen_3',
-      kandangId: 'kandang_2',
-      kandangNama: 'Kandang 2',
-      jumlahTelur: 68,
-      tanggalPanen: DateTime(2026, 3, 7, 9, 0), // 7 March 2026, 09:00
-      jam: '09:00',
-      catatan: 'Panen pagi - Produksi meningkat',
-    ),
-    Panen(
-      id: 'panen_4',
-      kandangId: 'kandang_2',
-      kandangNama: 'Kandang 2',
-      jumlahTelur: 71,
-      tanggalPanen: DateTime(2026, 3, 7, 15, 0), // 7 March 2026, 15:00
-      jam: '15:00',
-      catatan: 'Panen sore - Normal',
-    ),
-    // Tanggal 8 March 2026 - Kandang 1
-    Panen(
-      id: 'panen_5',
-      kandangId: 'kandang_1',
-      kandangNama: 'Kandang 1',
-      jumlahTelur: 48,
-      tanggalPanen: DateTime(2026, 3, 8, 9, 0), // 8 March 2026, 09:00
-      jam: '09:00',
-      catatan: 'Panen pagi - Produksi stabil',
-    ),
-    Panen(
-      id: 'panen_6',
-      kandangId: 'kandang_1',
-      kandangNama: 'Kandang 1',
-      jumlahTelur: 44,
-      tanggalPanen: DateTime(2026, 3, 8, 15, 0), // 8 March 2026, 15:00
-      jam: '15:00',
-      catatan: 'Panen sore - Normal',
-    ),
-    // Tanggal 8 March 2026 - Kandang 2
-    Panen(
-      id: 'panen_7',
-      kandangId: 'kandang_2',
-      kandangNama: 'Kandang 2',
-      jumlahTelur: 65,
-      tanggalPanen: DateTime(2026, 3, 8, 9, 0), // 8 March 2026, 09:00
-      jam: '09:00',
-      catatan: 'Panen pagi - Kondisi baik',
-    ),
-    Panen(
-      id: 'panen_8',
-      kandangId: 'kandang_2',
-      kandangNama: 'Kandang 2',
-      jumlahTelur: 69,
-      tanggalPanen: DateTime(2026, 3, 8, 15, 0), // 8 March 2026, 15:00
-      jam: '15:00',
-      catatan: 'Panen sore - Normal',
-    ),
-  ];
+  final List<Panen> _panens = [];
 
   List<Panen> get panens => _panens;
 
@@ -293,8 +217,10 @@ class PanenProvider extends ChangeNotifier {
       _panens.add(newPanen);
       _panens.sort((a, b) => b.tanggalPanen.compareTo(a.tanggalPanen));
 
-      // Simpan ke Firebase
-      await _savePanenToFirebase(newPanen);
+      // Guard: auto-capture write hanya dari Railway worker.
+      if (_allowFlutterAutoCaptureWrite) {
+        await _savePanenToFirebase(newPanen);
+      }
 
       if (kDebugMode) {
         print('✅ Panen Pagi recorded untuk $kandangNama: $jumlahTelur telur');
@@ -361,8 +287,10 @@ class PanenProvider extends ChangeNotifier {
       _panens.add(newPanen);
       _panens.sort((a, b) => b.tanggalPanen.compareTo(a.tanggalPanen));
 
-      // Simpan ke Firebase
-      await _savePanenToFirebase(newPanen);
+      // Guard: auto-capture write hanya dari Railway worker.
+      if (_allowFlutterAutoCaptureWrite) {
+        await _savePanenToFirebase(newPanen);
+      }
 
       if (kDebugMode) {
         print(
@@ -381,7 +309,7 @@ class PanenProvider extends ChangeNotifier {
   /// Simpan panen ke Firebase
   Future<void> _savePanenToFirebase(Panen panen) async {
     try {
-      final ref = _database.ref('riwayat').push();
+      final ref = _database.ref('riwayat/records').push();
       await ref.set({
         'id': panen.id,
         'kandang_id': panen.kandangId,
@@ -395,6 +323,8 @@ class PanenProvider extends ChangeNotifier {
         'catatan': panen.catatan,
       });
 
+      await _updateRiwayatSummary(panen);
+
       if (kDebugMode) {
         print('✅ Panen saved to Firebase: ${panen.id}');
       }
@@ -403,6 +333,52 @@ class PanenProvider extends ChangeNotifier {
         print('❌ Error saving panen to Firebase: $e');
       }
     }
+  }
+
+  Future<void> _updateRiwayatSummary(Panen panen) async {
+    final now = panen.tanggalPanen;
+    final dateKey =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final summaryRef = _database.ref('riwayat/summary');
+
+    await summaryRef.runTransaction((current) {
+      final data = Map<dynamic, dynamic>.from(
+        (current as Map?) ?? <dynamic, dynamic>{},
+      );
+
+      int telurHariIni = (data['telur_hari_ini'] ?? 0) as int;
+      int totalTelur = (data['total_telur'] ?? 0) as int;
+      int kandang1 = (data['kandang1_hari_ini'] ?? 0) as int;
+      int kandang2 = (data['kandang2_hari_ini'] ?? 0) as int;
+      final lastDate = '${data['last_reset_date'] ?? ''}';
+
+      if (lastDate != dateKey) {
+        telurHariIni = 0;
+        kandang1 = 0;
+        kandang2 = 0;
+      }
+
+      telurHariIni += panen.jumlahTelur;
+      totalTelur += panen.jumlahTelur;
+
+      final kandangIdLower = panen.kandangId.toLowerCase();
+      if (kandangIdLower == 'kandang1' || kandangIdLower == 'kandang_1') {
+        kandang1 += panen.jumlahTelur;
+      }
+      if (kandangIdLower == 'kandang2' || kandangIdLower == 'kandang_2') {
+        kandang2 += panen.jumlahTelur;
+      }
+
+      return Transaction.success({
+        ...data,
+        'telur_hari_ini': telurHariIni,
+        'kandang1_hari_ini': kandang1,
+        'kandang2_hari_ini': kandang2,
+        'total_telur': totalTelur,
+        'last_reset_date': dateKey,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    });
   }
 
   /// Load snapshots dari Firebase ketika app start (untuk sync state)
@@ -457,7 +433,7 @@ class PanenProvider extends ChangeNotifier {
   /// Restore historical panen dari Firebase saat app start
   Future<void> restorePanenHistoryFromFirebase() async {
     try {
-      final ref = _database.ref('riwayat');
+      final ref = _database.ref('riwayat/records');
       final snapshot = await ref.get();
 
       if (snapshot.exists) {
@@ -465,13 +441,18 @@ class PanenProvider extends ChangeNotifier {
         _panens.clear();
 
         data.forEach((key, value) {
-          final panenData = Map<dynamic, dynamic>.from(value as Map);
+          if (value is! Map) return;
+          final panenData = Map<dynamic, dynamic>.from(value);
+          final tanggalRaw = panenData['tanggal_panen'];
+          final tanggal = DateTime.tryParse('${tanggalRaw ?? ''}');
+          if (tanggal == null) return;
+
           final panen = Panen(
             id: panenData['id'] ?? '',
             kandangId: panenData['kandang_id'] ?? '',
             kandangNama: panenData['kandang_nama'] ?? '',
             jumlahTelur: panenData['jumlah_telur'] ?? 0,
-            tanggalPanen: DateTime.parse(panenData['tanggal_panen'] ?? ''),
+            tanggalPanen: tanggal,
             jam: panenData['jam'] ?? '',
             catatan: panenData['catatan'] ?? '',
             jenisPanen: panenData['jenis_panen'],
@@ -480,6 +461,39 @@ class PanenProvider extends ChangeNotifier {
           );
           _panens.add(panen);
         });
+      } else {
+        // Fallback legacy structure: /riwayat langsung berisi records + summary.
+        final legacySnapshot = await _database.ref('riwayat').get();
+        if (legacySnapshot.exists) {
+          final legacyData = Map<dynamic, dynamic>.from(
+            legacySnapshot.value as Map,
+          );
+          _panens.clear();
+
+          legacyData.forEach((key, value) {
+            if (value is! Map) return;
+            final panenData = Map<dynamic, dynamic>.from(value);
+            if (!panenData.containsKey('kandang_id')) return;
+            final tanggalRaw = panenData['tanggal_panen'];
+            final tanggal = DateTime.tryParse('${tanggalRaw ?? ''}');
+            if (tanggal == null) return;
+
+            _panens.add(
+              Panen(
+                id: panenData['id'] ?? '',
+                kandangId: panenData['kandang_id'] ?? '',
+                kandangNama: panenData['kandang_nama'] ?? '',
+                jumlahTelur: panenData['jumlah_telur'] ?? 0,
+                tanggalPanen: tanggal,
+                jam: panenData['jam'] ?? '',
+                catatan: panenData['catatan'] ?? '',
+                jenisPanen: panenData['jenis_panen'],
+                sensorSnapshot: panenData['sensor_snapshot'],
+                panenSebelumnya: panenData['panen_sebelumnya'],
+              ),
+            );
+          });
+        }
 
         _panens.sort((a, b) => b.tanggalPanen.compareTo(a.tanggalPanen));
 

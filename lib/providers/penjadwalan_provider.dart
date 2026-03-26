@@ -18,35 +18,89 @@ class PenjadwalanProvider extends ChangeNotifier {
   Future<void> initializeWithUser(String userId) async {
     _penjadwalanRef = _database.ref('kontrol/penjadwalan');
 
+    try {
+      // Pastikan jadwal awal tersedia agar login pertama langsung ada isi.
+      await _ensureInitialPenjadwalanData();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Warning ensuring penjadwalan initial data: $e');
+      }
+    }
+
     // Clear previous listener
     await _subscription?.cancel();
 
     // Load data dari Firebase dengan real-time listener
-    _subscription = _penjadwalanRef.onValue.listen((event) {
-      if (event.snapshot.exists) {
-        final data = event.snapshot.value as Map<dynamic, dynamic>;
-        _penjadwalans = data.entries.map((entry) {
-          return Penjadwalan.fromJson({
-            'id': entry.key,
-            ...entry.value as Map<dynamic, dynamic>,
-          });
-        }).toList();
+    _subscription = _penjadwalanRef.onValue.listen(
+      (event) {
+        try {
+          if (event.snapshot.exists && event.snapshot.value is Map) {
+            final data =
+                Map<dynamic, dynamic>.from(event.snapshot.value as Map);
+            _penjadwalans =
+                data.entries.where((entry) => entry.value is Map).map((entry) {
+              return Penjadwalan.fromJson({
+                'id': entry.key,
+                ...Map<dynamic, dynamic>.from(entry.value as Map),
+              });
+            }).toList();
 
-        // Sort berdasarkan nomor untuk urutan yang rapi
-        _penjadwalans.sort((a, b) {
-          int numA = int.tryParse(a.id.replaceAll('penjadwalan', '')) ?? 999;
-          int numB = int.tryParse(b.id.replaceAll('penjadwalan', '')) ?? 999;
-          return numA.compareTo(numB);
-        });
-      } else {
-        _penjadwalans = [];
-      }
-      _isLoading = false;
-      notifyListeners();
-    });
+            // Sort berdasarkan nomor untuk urutan yang rapi
+            _penjadwalans.sort((a, b) {
+              int numA =
+                  int.tryParse(a.id.replaceAll('penjadwalan', '')) ?? 999;
+              int numB =
+                  int.tryParse(b.id.replaceAll('penjadwalan', '')) ?? 999;
+              return numA.compareTo(numB);
+            });
+          } else {
+            _penjadwalans = [];
+          }
+          _isLoading = false;
+          notifyListeners();
+        } catch (e) {
+          if (kDebugMode) {
+            print('Error parsing penjadwalan data: $e');
+          }
+          _isLoading = false;
+          notifyListeners();
+        }
+      },
+      onError: (error) {
+        if (kDebugMode) {
+          print('Error listening penjadwalan data: $error');
+        }
+        _isLoading = false;
+        notifyListeners();
+      },
+    );
 
     _isLoading = false;
     notifyListeners();
+  }
+
+  Future<void> _ensureInitialPenjadwalanData() async {
+    final snapshot = await _penjadwalanRef.get();
+    if (snapshot.exists) return;
+
+    await _penjadwalanRef.set({
+      'penjadwalan1': {
+        'kandangId': 'kandang1',
+        'kandangNama': 'Kandang 1',
+        'jam': '09:00',
+        'durasi': '30 menit',
+        'keterangan': 'Panen pagi',
+        'aktif': true,
+      },
+      'penjadwalan2': {
+        'kandangId': 'kandang2',
+        'kandangNama': 'Kandang 2',
+        'jam': '15:00',
+        'durasi': '30 menit',
+        'keterangan': 'Panen sore',
+        'aktif': true,
+      },
+    });
   }
 
   /// Get next penjadwalan number (penjadwalan1, penjadwalan2, dst)

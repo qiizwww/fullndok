@@ -7,6 +7,7 @@ import '../models/kandang_model.dart';
 class KandangProvider extends ChangeNotifier {
   final FirebaseDatabase _database = FirebaseDatabase.instance;
   late DatabaseReference _kandangRef;
+  static const String _sharedKandangPath = 'kontrol/kandang';
 
   List<Kandang> _kandangs = [];
   bool _isLoading = true;
@@ -24,39 +25,101 @@ class KandangProvider extends ChangeNotifier {
 
   /// Initialize provider dengan user ID dan load data dari Firebase
   Future<void> initializeWithUser(String userId) async {
-    _kandangRef = _database.ref('users/$userId/kandang');
+    _kandangRef = _database.ref(_sharedKandangPath);
+
+    try {
+      // Pastikan ada data awal agar user baru tidak selalu input dari nol.
+      await _ensureInitialKandangData(userId);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Warning ensuring kandang initial data: $e');
+      }
+    }
 
     // Clear previous listener
     await _subscription?.cancel();
 
     // Load data dari Firebase dengan real-time listener
-    _subscription = _kandangRef.onValue.listen((event) {
-      if (event.snapshot.exists) {
-        final data = event.snapshot.value as Map<dynamic, dynamic>;
-        _kandangs = data.entries.map((entry) {
-          final kandangData = entry.value as Map<dynamic, dynamic>;
-          return Kandang(
-            id: entry.key,
-            nama: kandangData['nama'] ?? '',
-            jumlahAyam: kandangData['jumlahAyam'] ?? 0,
-            dibuat: kandangData['dibuat'] != null
-                ? DateTime.parse(kandangData['dibuat'])
-                : DateTime.now(),
-            infraPath: kandangData['infraPath'],
-          );
-        }).toList();
-      } else {
-        _kandangs = [];
-      }
-      _isLoading = false;
-      notifyListeners();
-    });
+    _subscription = _kandangRef.onValue.listen(
+      (event) {
+        try {
+          if (event.snapshot.exists && event.snapshot.value is Map) {
+            final data =
+                Map<dynamic, dynamic>.from(event.snapshot.value as Map);
+            _kandangs =
+                data.entries.where((entry) => entry.value is Map).map((entry) {
+              final kandangData =
+                  Map<dynamic, dynamic>.from(entry.value as Map);
+              return Kandang(
+                id: entry.key.toString(),
+                nama: kandangData['nama'] ?? '',
+                jumlahAyam: kandangData['jumlahAyam'] ?? 0,
+                dibuat: kandangData['dibuat'] != null
+                    ? DateTime.parse(kandangData['dibuat'])
+                    : DateTime.now(),
+                infraPath: kandangData['infraPath'],
+              );
+            }).toList();
+          } else {
+            _kandangs = [];
+          }
+          _isLoading = false;
+          notifyListeners();
+        } catch (e) {
+          if (kDebugMode) {
+            print('Error parsing kandang data: $e');
+          }
+          _isLoading = false;
+          notifyListeners();
+        }
+      },
+      onError: (error) {
+        if (kDebugMode) {
+          print('Error listening kandang data: $error');
+        }
+        _isLoading = false;
+        notifyListeners();
+      },
+    );
 
     // Start listening to sensors from 'data' folder
     listenToSensors();
 
     _isLoading = false;
     notifyListeners();
+  }
+
+  Future<void> _ensureInitialKandangData(String userId) async {
+    final sharedSnapshot = await _kandangRef.get();
+    if (sharedSnapshot.exists) return;
+
+    try {
+      final legacyRef = _database.ref('users/$userId/kandang');
+      final legacySnapshot = await legacyRef.get();
+      if (legacySnapshot.exists) {
+        await _kandangRef.set(legacySnapshot.value);
+        return;
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Warning reading legacy kandang data: $e');
+      }
+    }
+
+    await _kandangRef.set({
+      'kandang1': {
+        'nama': 'Kandang 1',
+        'jumlahAyam': 100,
+        'dibuat': DateTime.now().toIso8601String(),
+        'infraPath': 'infra1',
+      },
+      'kandang2': {
+        'nama': 'Kandang 2',
+        'jumlahAyam': 120,
+        'dibuat': DateTime.now().toIso8601String(),
+        'infraPath': 'infra2',
+      },
+    });
   }
 
   /// Clear semua data saat logout
@@ -138,26 +201,23 @@ class KandangProvider extends ChangeNotifier {
       _sensorSubscription?.cancel();
 
       // Listen ke 'data' folder untuk mendapatkan infra1 dan infra2
-      _sensorSubscription = _database
-          .ref('data')
-          .onValue
-          .listen(
-            (event) {
-              if (event.snapshot.exists) {
-                final data = Map<dynamic, dynamic>.from(
-                  event.snapshot.value as Map,
-                );
-                _infra1Value = data['infra1'] ?? 0;
-                _infra2Value = data['infra2'] ?? 0;
+      _sensorSubscription = _database.ref('data').onValue.listen(
+        (event) {
+          if (event.snapshot.exists) {
+            final data = Map<dynamic, dynamic>.from(
+              event.snapshot.value as Map,
+            );
+            _infra1Value = data['infra1'] ?? 0;
+            _infra2Value = data['infra2'] ?? 0;
 
-                // Trigger notifyListeners() agar UI terupdate
-                notifyListeners();
-              }
-            },
-            onError: (error) {
-              print('Error listening to sensors: $error');
-            },
-          );
+            // Trigger notifyListeners() agar UI terupdate
+            notifyListeners();
+          }
+        },
+        onError: (error) {
+          print('Error listening to sensors: $error');
+        },
+      );
     } catch (e) {
       print('Error setting up sensor listener: $e');
     }

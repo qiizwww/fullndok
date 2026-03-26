@@ -325,6 +325,47 @@ class _RiwayatPageState extends State<RiwayatPage> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: (panen.jenisPanen ?? '').toLowerCase() ==
+                                      'sore'
+                                  ? Colors.blue.shade50
+                                  : Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              (panen.jenisPanen ?? 'manual').toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: (panen.jenisPanen ?? '').toLowerCase() ==
+                                        'sore'
+                                    ? Colors.blue.shade700
+                                    : Colors.green.shade700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              panen.catatan,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),

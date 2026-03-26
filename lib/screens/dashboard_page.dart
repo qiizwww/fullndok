@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/kandang_provider.dart';
 import '../providers/panen_provider.dart';
 import '../providers/penjadwalan_provider.dart';
+import '../providers/riwayat_provider.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -10,6 +11,7 @@ class DashboardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final kandangProvider = context.watch<KandangProvider>();
+    final telurProvider = context.watch<TelurProvider>();
 
     return Scaffold(
       body: Container(
@@ -77,7 +79,7 @@ class DashboardPage extends StatelessWidget {
                       Row(
                         children: [
                           Text(
-                            '${kandangProvider.infra1Value + kandangProvider.infra2Value}',
+                            '${telurProvider.telurHariIni}',
                             style: const TextStyle(
                               fontSize: 48,
                               fontWeight: FontWeight.bold,
@@ -86,6 +88,32 @@ class DashboardPage extends StatelessWidget {
                           ),
                           const SizedBox(width: 12),
                           Text('🥚', style: TextStyle(fontSize: 40)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Kandang 1: ${telurProvider.kandang1HariIni}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white.withOpacity(0.9),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              'Kandang 2: ${telurProvider.kandang2HariIni}',
+                              textAlign: TextAlign.right,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white.withOpacity(0.9),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ],

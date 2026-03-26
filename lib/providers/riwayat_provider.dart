@@ -6,16 +6,20 @@ class TelurProvider extends ChangeNotifier {
   late DatabaseReference _riwayatRef;
 
   int _telurHariIni = 0;
+  int _kandang1HariIni = 0;
+  int _kandang2HariIni = 0;
   int _totalTelur = 0;
   String _lastResetDate = '';
   bool _isSynced = false;
 
   int get telurHariIni => _telurHariIni;
+  int get kandang1HariIni => _kandang1HariIni;
+  int get kandang2HariIni => _kandang2HariIni;
   int get totalTelur => _totalTelur;
   bool get isSynced => _isSynced;
 
   TelurProvider() {
-    _riwayatRef = _database.ref('riwayat');
+    _riwayatRef = _database.ref('riwayat/summary');
     _initializeRiwayat();
   }
 
@@ -28,6 +32,8 @@ class TelurProvider extends ChangeNotifier {
         // Create initial structure
         await _riwayatRef.set({
           'telur_hari_ini': 0,
+          'kandang1_hari_ini': 0,
+          'kandang2_hari_ini': 0,
           'total_telur': 0,
           'last_reset_date': DateTime.now().toIso8601String().split('T')[0],
         });
@@ -41,6 +47,8 @@ class TelurProvider extends ChangeNotifier {
         if (event.snapshot.exists) {
           final data = event.snapshot.value as Map<dynamic, dynamic>;
           _telurHariIni = data['telur_hari_ini'] ?? 0;
+          _kandang1HariIni = data['kandang1_hari_ini'] ?? 0;
+          _kandang2HariIni = data['kandang2_hari_ini'] ?? 0;
           _totalTelur = data['total_telur'] ?? 0;
           _lastResetDate = data['last_reset_date'] ?? '';
 
@@ -65,6 +73,8 @@ class TelurProvider extends ChangeNotifier {
       if (snapshot.exists) {
         final data = snapshot.value as Map<dynamic, dynamic>;
         _telurHariIni = data['telur_hari_ini'] ?? 0;
+        _kandang1HariIni = data['kandang1_hari_ini'] ?? 0;
+        _kandang2HariIni = data['kandang2_hari_ini'] ?? 0;
         _totalTelur = data['total_telur'] ?? 0;
         _lastResetDate = data['last_reset_date'] ?? '';
         notifyListeners();
@@ -82,9 +92,13 @@ class TelurProvider extends ChangeNotifier {
         // Reset telur_hari_ini for new day
         await _riwayatRef.update({
           'telur_hari_ini': 0,
+          'kandang1_hari_ini': 0,
+          'kandang2_hari_ini': 0,
           'last_reset_date': todayDate,
         });
         _telurHariIni = 0;
+        _kandang1HariIni = 0;
+        _kandang2HariIni = 0;
         notifyListeners();
       }
     } catch (e) {
@@ -121,9 +135,13 @@ class TelurProvider extends ChangeNotifier {
       final todayDate = DateTime.now().toIso8601String().split('T')[0];
       await _riwayatRef.update({
         'telur_hari_ini': 0,
+        'kandang1_hari_ini': 0,
+        'kandang2_hari_ini': 0,
         'last_reset_date': todayDate,
       });
       _telurHariIni = 0;
+      _kandang1HariIni = 0;
+      _kandang2HariIni = 0;
       notifyListeners();
     } catch (e) {
       print('Error resetting telur hari ini: $e');
@@ -134,10 +152,14 @@ class TelurProvider extends ChangeNotifier {
     try {
       await _riwayatRef.set({
         'telur_hari_ini': 0,
+        'kandang1_hari_ini': 0,
+        'kandang2_hari_ini': 0,
         'total_telur': 0,
         'last_reset_date': DateTime.now().toIso8601String().split('T')[0],
       });
       _telurHariIni = 0;
+      _kandang1HariIni = 0;
+      _kandang2HariIni = 0;
       _totalTelur = 0;
       notifyListeners();
     } catch (e) {

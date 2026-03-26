@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/penjadwalan_provider.dart';
 import '../providers/kandang_provider.dart';
+import '../providers/panen_provider.dart';
 import 'dashboard_page.dart';
 import 'kontrol_page.dart';
 import 'riwayat_page.dart';
@@ -17,12 +18,45 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
+  String? _initializedForUserId;
 
   final List<Widget> _pages = [
     const DashboardPage(),
     const KontrolPage(),
     const RiwayatPage(),
   ];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final authProvider = context.read<AuthProvider>();
+    final userId = authProvider.user?.uid;
+
+    if (userId == null || userId == _initializedForUserId) return;
+    _initializedForUserId = userId;
+
+    // Re-init provider saat app restart/hot restart ketika user masih login.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      try {
+        await context.read<PenjadwalanProvider>().initializeWithUser(userId);
+        if (!mounted) return;
+        await context.read<KandangProvider>().initializeWithUser(userId);
+        if (!mounted) return;
+        final panenProvider = context.read<PanenProvider>();
+        await panenProvider.loadTodaySnapshots();
+        await panenProvider.restorePanenHistoryFromFirebase();
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sinkronisasi data sedang bermasalah, coba lagi.'),
+          ),
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

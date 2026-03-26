@@ -54,8 +54,19 @@ class _LoginPageState extends State<LoginPage> {
         final penjadwalanProvider = context.read<PenjadwalanProvider>();
         final kandangProvider = context.read<KandangProvider>();
 
-        await penjadwalanProvider.initializeWithUser(userId);
-        await kandangProvider.initializeWithUser(userId);
+        try {
+          await penjadwalanProvider.initializeWithUser(userId);
+          await kandangProvider.initializeWithUser(userId);
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Login berhasil, tetapi sinkronisasi data belum sempurna.',
+              ),
+            ),
+          );
+        }
       }
 
       if (!mounted) return;
