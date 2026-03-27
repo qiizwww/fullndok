@@ -12,6 +12,21 @@ class DashboardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final kandangProvider = context.watch<KandangProvider>();
     final telurProvider = context.watch<TelurProvider>();
+    final panenProvider = context.watch<PanenProvider>();
+
+    final fallbackKandang1Today = _getTodayTotalByKandang(
+      panenProvider,
+      kandangKey: 'kandang1',
+    );
+    final fallbackKandang2Today = _getTodayTotalByKandang(
+      panenProvider,
+      kandangKey: 'kandang2',
+    );
+
+    final kandang1TodayDisplay =
+        telurProvider.kandang1HariIni != 0 ? telurProvider.kandang1HariIni : fallbackKandang1Today;
+    final kandang2TodayDisplay =
+        telurProvider.kandang2HariIni != 0 ? telurProvider.kandang2HariIni : fallbackKandang2Today;
 
     return Container(
       decoration: BoxDecoration(
@@ -93,7 +108,7 @@ class DashboardPage extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          'Kandang 1: ${telurProvider.kandang1HariIni}',
+                          'Kandang 1: $kandang1TodayDisplay',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.white.withOpacity(0.9),
@@ -103,7 +118,7 @@ class DashboardPage extends StatelessWidget {
                       ),
                       Expanded(
                         child: Text(
-                          'Kandang 2: ${telurProvider.kandang2HariIni}',
+                          'Kandang 2: $kandang2TodayDisplay',
                           textAlign: TextAlign.right,
                           style: TextStyle(
                             fontSize: 12,
@@ -534,5 +549,25 @@ class DashboardPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  int _getTodayTotalByKandang(
+    PanenProvider panenProvider, {
+    required String kandangKey,
+  }) {
+    final now = DateTime.now();
+    final normalizedTarget = kandangKey.toLowerCase();
+
+    return panenProvider.panens.where((panen) {
+      final sameDate =
+          panen.tanggalPanen.year == now.year &&
+          panen.tanggalPanen.month == now.month &&
+          panen.tanggalPanen.day == now.day;
+      if (!sameDate) return false;
+
+      final idText = panen.kandangId.toLowerCase().replaceAll('_', '');
+      final namaText = panen.kandangNama.toLowerCase().replaceAll(' ', '');
+      return idText.contains(normalizedTarget) || namaText.contains(normalizedTarget);
+    }).fold<int>(0, (sum, panen) => sum + panen.jumlahTelur);
   }
 }
