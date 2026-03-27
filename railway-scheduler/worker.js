@@ -9,7 +9,6 @@ const SCHEDULER_ENABLED = String(process.env.SCHEDULER_ENABLED || 'true') === 't
 const COMPACT_MODE = String(process.env.COMPACT_MODE || 'true') === 'true';
 const RIWAYAT_MAX_RECORDS = Number(process.env.RIWAYAT_MAX_RECORDS || 500);
 const SCHEDULER_RUNS_RETAIN_DAYS = Number(process.env.SCHEDULER_RUNS_RETAIN_DAYS || 14);
-let motorOffTimer = null;
 
 function getEnvOrThrow(key) {
   const value = process.env[key];
@@ -81,10 +80,14 @@ function toDate(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function normalizeKandangKey(kandangId) {
-  const id = String(kandangId || '').toLowerCase();
-  if (id === 'kandang1' || id === 'kandang_1') return 'kandang1';
-  if (id === 'kandang2' || id === 'kandang_2') return 'kandang2';
+function normalizeKandangKey(kandangId, kandangNama) {
+  const rawId = String(kandangId || '').toLowerCase();
+  const rawNama = String(kandangNama || '').toLowerCase();
+  const merged = `${rawId} ${rawNama}`;
+  const compact = merged.replace(/[^a-z0-9]/g, '');
+
+  if (compact.includes('kandang1')) return 'kandang1';
+  if (compact.includes('kandang2')) return 'kandang2';
   return 'lainnya';
 }
 
@@ -132,33 +135,6 @@ function resolveTargetKandangIds(jadwal, kandangMap) {
   return [kandangId];
 }
 
-async function triggerMotorForDuration(durasiMs, jadwalId) {
-  const ref = admin.database().ref('aktuator');
-  await ref.update({
-    motor: true,
-    last_trigger_by_scheduler: new Date().toISOString(),
-    last_trigger_jadwal: jadwalId,
-    durasi_ms: durasiMs,
-  });
-  console.log(`[ok] Motor ON untuk jadwal ${jadwalId}, durasi ${Math.round(durasiMs / 1000)} detik`);
-
-  if (motorOffTimer) {
-    clearTimeout(motorOffTimer);
-  }
-
-  motorOffTimer = setTimeout(async () => {
-    try {
-      await ref.update({
-        motor: false,
-        last_off_by_scheduler: new Date().toISOString(),
-      });
-      console.log(`[ok] Motor OFF otomatis setelah durasi jadwal ${jadwalId}`);
-    } catch (e) {
-      console.error('[error] Gagal mematikan motor otomatis:', e.message);
-    }
-  }, durasiMs);
-}
-
 function detectJenisPanen(jadwal) {
   const jam = String(jadwal.jam || '09:00');
   const hour = Number(jam.split(':')[0] || 9);
@@ -193,9 +169,9 @@ async function acquireRunLock(todayKey, lockKey) {
   return tx.committed;
 }
 
-async function updateRiwayatSummary({ kandangId, jumlahTelur, dateKey }) {
+async function updateRiwayatSummary({ kandangId, kandangNama, jumlahTelur, dateKey }) {
   const summaryRef = admin.database().ref('riwayat/summary');
-  const kandangKey = normalizeKandangKey(kandangId);
+  const kandangKey = normalizeKandangKey(kandangId, kandangNama);
   const totalAdd = toInt(jumlahTelur);
 
   await summaryRef.transaction((current) => {
@@ -279,6 +255,7 @@ async function writeRiwayat({
 
   await updateRiwayatSummary({
     kandangId,
+    kandangNama,
     jumlahTelur: jumlah,
     dateKey,
   });
@@ -528,7 +505,11 @@ async function runForSchedule(jadwalId, jadwal, dataSensor, kandangMap, todayKey
   const jenisPanen = detectJenisPanen(jadwal);
   const durasiMs = parseDurasiMs(jadwal.durasi);
 
-  await triggerMotorForDuration(durasiMs, jadwalId);
+  console.log(
+    `[info] ${jadwalId}: trigger motor dilewati di worker (durasi jadwal ${Math.round(
+      durasiMs / 1000,
+    )} detik), aktuator dikendalikan EPS/main.cpp`,
+  );
 
   const targetKandangIds = resolveTargetKandangIds(jadwal, kandangMap);
 
