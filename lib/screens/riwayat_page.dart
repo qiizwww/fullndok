@@ -13,12 +13,15 @@ class RiwayatPage extends StatefulWidget {
 class _RiwayatPageState extends State<RiwayatPage> {
   DateTime? _selectedStartDate;
   DateTime? _selectedEndDate;
+  String _selectedKandang = 'semua';
+  DateTime? _lastRefreshAt;
 
   @override
   void initState() {
     super.initState();
     _selectedStartDate = DateTime.now().subtract(const Duration(days: 7));
     _selectedEndDate = DateTime.now();
+    _lastRefreshAt = DateTime.now();
   }
 
   @override
@@ -123,6 +126,68 @@ class _RiwayatPageState extends State<RiwayatPage> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Filter Kandang',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: _selectedKandang,
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'semua',
+                          child: Text('Semua Kandang'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'kandang1',
+                          child: Text('Kandang 1'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'kandang2',
+                          child: Text('Kandang 2'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          _selectedKandang = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _lastRefreshAt != null
+                              ? 'Update: ${DateFormat('dd/MM/yyyy HH:mm').format(_lastRefreshAt!)}'
+                              : 'Belum pernah refresh',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: _handleRefresh,
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Refresh'),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -138,243 +203,276 @@ class _RiwayatPageState extends State<RiwayatPage> {
   Widget _buildRiwayatList() {
     final panenProvider = context.watch<PanenProvider>();
 
-    List<dynamic> panens = [];
-    if (_selectedStartDate != null && _selectedEndDate != null) {
-      panens = panenProvider.getPanenByDateRange(
-        _selectedStartDate!,
-        _selectedEndDate!,
+    final panens = _getFilteredPanens(panenProvider);
+    final groupedPanens = <DateTime, List<dynamic>>{};
+    for (final panen in panens) {
+      final key = DateTime(
+        panen.tanggalPanen.year,
+        panen.tanggalPanen.month,
+        panen.tanggalPanen.day,
       );
+      groupedPanens.putIfAbsent(key, () => []).add(panen);
+    }
+    final sortedDates = groupedPanens.keys.toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    for (final key in sortedDates) {
+      groupedPanens[key]!
+          .sort((a, b) => b.tanggalPanen.compareTo(a.tanggalPanen));
     }
 
-    if (panens.isEmpty) {
-      return Center(
+    final totalTelur =
+        panens.fold<int>(0, (sum, p) => sum + (p.jumlahTelur as int));
+
+    final listChildren = <Widget>[
+      Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.orange.shade300, Colors.orange.shade600],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.shade300.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(20),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('📭', style: TextStyle(fontSize: 64)),
-            const SizedBox(height: 16),
             Text(
-              'Tidak ada data panen',
+              'Total Produksi',
               style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.white.withOpacity(0.9),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$totalTelur',
+                      style: const TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'telur',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
+                const Text('🥚', style: TextStyle(fontSize: 48)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '${panens.length} pencatatan panen',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withOpacity(0.8),
               ),
             ),
           ],
         ),
-      );
-    }
+      ),
+      const SizedBox(height: 24),
+      Text(
+        'Detail Panen Per Hari',
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey.shade800,
+        ),
+      ),
+      const SizedBox(height: 12),
+    ];
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Total Harian Summary
+    if (panens.isEmpty) {
+      listChildren.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 48),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('📭', style: TextStyle(fontSize: 64)),
+                const SizedBox(height: 16),
+                Text(
+                  'Tidak ada data panen',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } else {
+      for (final date in sortedDates) {
+        final items = groupedPanens[date]!;
+        final dailyTotal =
+            items.fold<int>(0, (sum, p) => sum + (p.jumlahTelur as int));
+
+        listChildren.add(
           Container(
+            margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.orange.shade300, Colors.orange.shade600],
-              ),
-              borderRadius: BorderRadius.circular(16),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.orange.shade300.withOpacity(0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Total Produksi',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white.withOpacity(0.9),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${panens.isEmpty ? 0 : panens.map<int>((p) => p.jumlahTelur).reduce((a, b) => a + b)}',
-                          style: const TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'telur',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white.withOpacity(0.8),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text('🥚', style: TextStyle(fontSize: 48)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '${panens.length} pencatatan panen',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withOpacity(0.8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Breakdown per hari
-          Text(
-            'Detail Panen Per Hari',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: panens.length,
-            itemBuilder: (context, index) {
-              final panen = panens[index];
-              final tanggal = DateFormat(
-                'dd MMMM yyyy',
-              ).format(panen.tanggalPanen);
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                panen.kandangNama,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '$tanggal • ${panen.jam}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade100,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            child: Column(
-                              children: [
-                                Text(
-                                  '${panen.jumlahTelur}',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.orange.shade700,
-                                  ),
-                                ),
-                                Text('🥚', style: TextStyle(fontSize: 16)),
-                              ],
-                            ),
-                          ),
-                        ],
+                      Text(
+                        DateFormat('dd MMMM yyyy').format(date),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: (panen.jenisPanen ?? '').toLowerCase() ==
-                                      'sore'
-                                  ? Colors.blue.shade50
-                                  : Colors.green.shade50,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              (panen.jenisPanen ?? 'manual').toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: (panen.jenisPanen ?? '').toLowerCase() ==
-                                        'sore'
-                                    ? Colors.blue.shade700
-                                    : Colors.green.shade700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              panen.catatan,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        '$dailyTotal telur',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange.shade700,
+                        ),
                       ),
                     ],
                   ),
-                ),
-              );
-            },
+                  const SizedBox(height: 10),
+                  ...items.map(
+                    (panen) => Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  panen.kandangNama,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${panen.jam} • ${(panen.jenisPanen ?? 'manual').toUpperCase()}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '${panen.jumlahTelur} 🥚',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
+        );
+      }
+    }
+
+    return RefreshIndicator(
+      onRefresh: _handleRefresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: listChildren,
       ),
     );
+  }
+
+  List<dynamic> _getFilteredPanens(PanenProvider panenProvider) {
+    final allPanens = List<dynamic>.from(panenProvider.panens);
+    final startDate = _selectedStartDate;
+    final endDate = _selectedEndDate;
+
+    final startBoundary = startDate != null
+        ? DateTime(startDate.year, startDate.month, startDate.day)
+        : null;
+    final endBoundary = endDate != null
+        ? DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59, 999)
+        : null;
+
+    final filtered = allPanens.where((panen) {
+      final inDateRange = (startBoundary == null ||
+              !panen.tanggalPanen.isBefore(startBoundary)) &&
+          (endBoundary == null || !panen.tanggalPanen.isAfter(endBoundary));
+
+      if (!inDateRange) return false;
+
+      if (_selectedKandang == 'semua') return true;
+
+      final kandangIdLower = panen.kandangId.toString().toLowerCase();
+      final kandangNamaLower = panen.kandangNama.toString().toLowerCase();
+      final normalized =
+          '$kandangIdLower $kandangNamaLower'.replaceAll('_', '');
+      return normalized.contains(_selectedKandang);
+    }).toList();
+
+    filtered.sort((a, b) => b.tanggalPanen.compareTo(a.tanggalPanen));
+    return filtered;
+  }
+
+  Future<void> _handleRefresh() async {
+    final panenProvider = context.read<PanenProvider>();
+    await panenProvider.loadTodaySnapshots();
+    await panenProvider.restorePanenHistoryFromFirebase();
+    if (!mounted) return;
+    setState(() {
+      _lastRefreshAt = DateTime.now();
+    });
   }
 
   Future<void> _selectStartDate() async {
