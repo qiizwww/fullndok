@@ -3,11 +3,9 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/penjadwalan_provider.dart';
 import '../providers/kandang_provider.dart';
-import '../providers/panen_provider.dart';
 import 'dashboard_page.dart';
 import 'kontrol_page.dart';
 import 'riwayat_page.dart';
-import 'panen_debug_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -18,45 +16,12 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-  String? _initializedForUserId;
 
   final List<Widget> _pages = [
     const DashboardPage(),
     const KontrolPage(),
     const RiwayatPage(),
   ];
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    final authProvider = context.read<AuthProvider>();
-    final userId = authProvider.user?.uid;
-
-    if (userId == null || userId == _initializedForUserId) return;
-    _initializedForUserId = userId;
-
-    // Re-init provider saat app restart/hot restart ketika user masih login.
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      try {
-        await context.read<PenjadwalanProvider>().initializeWithUser(userId);
-        if (!mounted) return;
-        await context.read<KandangProvider>().initializeWithUser(userId);
-        if (!mounted) return;
-        final panenProvider = context.read<PanenProvider>();
-        await panenProvider.loadTodaySnapshots();
-        await panenProvider.restorePanenHistoryFromFirebase();
-      } catch (_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Sinkronisasi data sedang bermasalah, coba lagi.'),
-          ),
-        );
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,14 +51,6 @@ class _HomePageState extends State<HomePage> {
             child: PopupMenuButton<int>(
               onSelected: (value) async {
                 if (value == 0) {
-                  // Navigate to Debug Screen
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const PanenDebugScreen(),
-                    ),
-                  );
-                } else if (value == 1) {
                   showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
@@ -168,39 +125,6 @@ class _HomePageState extends State<HomePage> {
               itemBuilder: (context) => [
                 PopupMenuItem(
                   value: 0,
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.orange.shade400,
-                              Colors.orange.shade600
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.bug_report,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Debug Panen',
-                        style: TextStyle(
-                          color: Colors.orange.shade600,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 1,
                   child: Row(
                     children: [
                       Container(

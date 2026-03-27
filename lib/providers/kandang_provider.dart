@@ -6,13 +6,14 @@ import '../models/kandang_model.dart';
 
 class KandangProvider extends ChangeNotifier {
   final FirebaseDatabase _database = FirebaseDatabase.instance;
-  late DatabaseReference _kandangRef;
+  late final DatabaseReference _kandangRef = _database.ref(_sharedKandangPath);
   static const String _sharedKandangPath = 'kontrol/kandang';
 
   List<Kandang> _kandangs = [];
   bool _isLoading = true;
   StreamSubscription? _subscription;
   StreamSubscription? _sensorSubscription;
+  String? _activeUserId;
 
   // Sensor Real-time Listeners
   int _infra1Value = 0;
@@ -25,7 +26,10 @@ class KandangProvider extends ChangeNotifier {
 
   /// Initialize provider dengan user ID dan load data dari Firebase
   Future<void> initializeWithUser(String userId) async {
-    _kandangRef = _database.ref(_sharedKandangPath);
+    if (_activeUserId == userId && _subscription != null) {
+      return;
+    }
+    _activeUserId = userId;
 
     try {
       // Pastikan ada data awal agar user baru tidak selalu input dari nol.
@@ -91,14 +95,21 @@ class KandangProvider extends ChangeNotifier {
 
   Future<void> _ensureInitialKandangData(String userId) async {
     final sharedSnapshot = await _kandangRef.get();
-    if (sharedSnapshot.exists) return;
+    if (sharedSnapshot.exists && sharedSnapshot.value is Map) {
+      final current = Map<dynamic, dynamic>.from(sharedSnapshot.value as Map);
+      if (current.isNotEmpty) return;
+    }
 
     try {
       final legacyRef = _database.ref('users/$userId/kandang');
       final legacySnapshot = await legacyRef.get();
-      if (legacySnapshot.exists) {
-        await _kandangRef.set(legacySnapshot.value);
-        return;
+      if (legacySnapshot.exists && legacySnapshot.value is Map) {
+        final legacyData =
+            Map<dynamic, dynamic>.from(legacySnapshot.value as Map);
+        if (legacyData.isNotEmpty) {
+          await _kandangRef.set(legacyData);
+          return;
+        }
       }
     } catch (e) {
       if (kDebugMode) {
@@ -126,6 +137,7 @@ class KandangProvider extends ChangeNotifier {
   Future<void> clearData() async {
     await _subscription?.cancel();
     await _sensorSubscription?.cancel();
+    _activeUserId = null;
     _kandangs = [];
     _isLoading = true;
     _infra1Value = 0;

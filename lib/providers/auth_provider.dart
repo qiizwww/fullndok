@@ -42,6 +42,11 @@ class AuthProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       return false;
+    } catch (_) {
+      _errorMessage = 'Terjadi kesalahan tak terduga. Coba lagi.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
     }
   }
 
@@ -62,6 +67,11 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } on FirebaseAuthException catch (e) {
       _errorMessage = _getErrorMessage(e.code);
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _errorMessage = 'Terjadi kesalahan tak terduga. Coba lagi.';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -97,6 +107,11 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } on FirebaseAuthException catch (e) {
       _errorMessage = _getErrorMessage(e.code);
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _errorMessage = 'Terjadi kesalahan tak terduga. Coba lagi.';
       _isLoading = false;
       notifyListeners();
       return false;

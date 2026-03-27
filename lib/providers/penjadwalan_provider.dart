@@ -5,18 +5,24 @@ import '../models/penjadwalan_model.dart';
 
 class PenjadwalanProvider extends ChangeNotifier {
   final FirebaseDatabase _database = FirebaseDatabase.instance;
-  late DatabaseReference _penjadwalanRef;
+  late final DatabaseReference _penjadwalanRef = _database.ref(
+    'kontrol/penjadwalan',
+  );
 
   List<Penjadwalan> _penjadwalans = [];
   bool _isLoading = true;
   StreamSubscription? _subscription;
+  String? _activeUserId;
 
   List<Penjadwalan> get penjadwalans => _penjadwalans;
   bool get isLoading => _isLoading;
 
   /// Initialize provider dengan user ID dan load data dari Firebase
   Future<void> initializeWithUser(String userId) async {
-    _penjadwalanRef = _database.ref('kontrol/penjadwalan');
+    if (_activeUserId == userId && _subscription != null) {
+      return;
+    }
+    _activeUserId = userId;
 
     try {
       // Pastikan jadwal awal tersedia agar login pertama langsung ada isi.
@@ -81,7 +87,10 @@ class PenjadwalanProvider extends ChangeNotifier {
 
   Future<void> _ensureInitialPenjadwalanData() async {
     final snapshot = await _penjadwalanRef.get();
-    if (snapshot.exists) return;
+    if (snapshot.exists && snapshot.value is Map) {
+      final current = Map<dynamic, dynamic>.from(snapshot.value as Map);
+      if (current.isNotEmpty) return;
+    }
 
     await _penjadwalanRef.set({
       'penjadwalan1': {
@@ -118,6 +127,7 @@ class PenjadwalanProvider extends ChangeNotifier {
   /// Clear semua data saat logout
   Future<void> clearData() async {
     await _subscription?.cancel();
+    _activeUserId = null;
     _penjadwalans = [];
     _isLoading = true;
     notifyListeners();

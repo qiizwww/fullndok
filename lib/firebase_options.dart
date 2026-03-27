@@ -47,6 +47,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '22111260761',
     projectId: 'telurku-fa78c',
     storageBucket: 'telurku-fa78c.firebasestorage.app',
+    databaseURL:
+        'https://telurku-fa78c-default-rtdb.asia-southeast1.firebasedatabase.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
